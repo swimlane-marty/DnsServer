@@ -1,0 +1,58 @@
+name: Build WildIp App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - wildip-ipv4-hex
+    paths:
+      - "Apps/WildIpApp/**"
+      - ".github/workflows/build-wildip-app.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out DnsServer fork
+        uses: actions/checkout@v4
+        with:
+          path: DnsServer
+
+      - name: Check out TechnitiumLibrary
+        uses: actions/checkout@v4
+        with:
+          repository: TechnitiumSoftware/TechnitiumLibrary
+          path: TechnitiumLibrary
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build Technitium libraries
+        run: |
+          dotnet build TechnitiumLibrary/TechnitiumLibrary.ByteTree/TechnitiumLibrary.ByteTree.csproj -c Release
+          dotnet build TechnitiumLibrary/TechnitiumLibrary.Net/TechnitiumLibrary.Net.csproj -c Release
+          dotnet build TechnitiumLibrary/TechnitiumLibrary.Security.OTP/TechnitiumLibrary.Security.OTP.csproj -c Release
+
+      - name: Build WildIp App
+        run: dotnet build DnsServer/Apps/WildIpApp/WildIpApp.csproj -c Release
+
+      - name: Package app
+        run: |
+          mkdir package
+          cp -a DnsServer/Apps/WildIpApp/bin/Release/. package/
+          rm -f package/*.pdb
+          cd package
+          zip -qr ../WildIpApp-v6.1.zip .
+
+      - name: Show package contents
+        run: unzip -l WildIpApp-v6.1.zip
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WildIpApp-v6.1
+          path: WildIpApp-v6.1.zip
+          if-no-files-found: error
