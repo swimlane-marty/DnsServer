@@ -1,4 +1,4 @@
-﻿/*
+/*
 Technitium DNS Server
 Copyright (C) 2026  Shreyas Zare (shreyas@technitium.com)
 
@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using DnsServerCore.ApplicationCommon;
 using System;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -108,7 +109,7 @@ namespace WildIp
 
                     if (address is null)
                     {
-                        //failed to parse ipv6; attempt to parse ipv4
+                        //failed to parse ipv6; attempt to parse decimal ipv4
                         string[] parts = subdomain.Split(aRecordSeparator, StringSplitOptions.RemoveEmptyEntries);
                         byte[] rawIp = new byte[4];
                         int i = 0;
@@ -120,9 +121,29 @@ namespace WildIp
                         }
 
                         if (i != 4)
-                            return null; //failed to parse ipv4
+                        {
+                            //failed to parse decimal ipv4; attempt to parse compact hexadecimal ipv4
+                            foreach (string part in parts)
+                            {
+                                if ((part.Length == 8) && uint.TryParse(part, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint value))
+                                {
+                                    rawIp[0] = (byte)(value >> 24);
+                                    rawIp[1] = (byte)(value >> 16);
+                                    rawIp[2] = (byte)(value >> 8);
+                                    rawIp[3] = (byte)value;
 
-                        address = new IPAddress(rawIp);
+                                    address = new IPAddress(rawIp);
+                                    break;
+                                }
+                            }
+
+                            if (address is null)
+                                return null; //failed to parse ipv4
+                        }
+                        else
+                        {
+                            address = new IPAddress(rawIp);
+                        }
                     }
 
                     if (!string.IsNullOrEmpty(appRecordData))
@@ -182,7 +203,7 @@ namespace WildIp
         #region properties
 
         public string Description
-        { get { return "Returns the IP address that was embedded in the subdomain name for A and AAAA queries. It works similar to sslip.io."; } }
+        { get { return "Returns the IP address embedded in the subdomain name for A and AAAA queries, including compact hexadecimal IPv4 notation. It works similar to sslip.io and nip.io."; } }
 
         public string ApplicationRecordDataTemplate
         {
